@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: balance
+      POSTGRES_PASSWORD: balance
+      POSTGRES_DB: balance
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U balance"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://balance:balance@db:5432/balance
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: change-me-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"    # HTTP → редирект на HTTPS
+      - "443:443"  # HTTPS
+    volumes:
+      # Сертификаты генерируются при первом старте и сохраняются между перезапусками.
+      # При желании замените их на сертификаты mkcert (см. README, раздел HTTPS).
+      - certs:/etc/nginx/ssl
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  certs:
